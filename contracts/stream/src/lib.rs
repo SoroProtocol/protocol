@@ -89,11 +89,15 @@ impl StreamContract {
         load_stream(&env, stream_id)
     }
 
+    pub fn stream_count(env: Env) -> u64 {
+        next_id(&env)
+    }
+
     fn _delta(env: &Env, s: &Stream) -> i128 {
         let now = env.ledger().timestamp();
         if now <= s.start_time { return 0; }
-        // NOTE: does not yet cap at stop_time — fixed in next commit
-        let elapsed = now - s.start_time;
+        // Cap at stop_time so balance never exceeds total deposit
+        let elapsed = now.min(s.stop_time) - s.start_time;
         (s.rate_per_second * elapsed as i128).saturating_sub(s.withdrawn)
     }
 }

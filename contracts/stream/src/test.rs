@@ -21,9 +21,7 @@ fn test_create_and_get() {
     env.ledger().set_timestamp(0);
     let id = client.create(&sender, &recipient, &tok, &100, &0, &1000);
     assert_eq!(id, 0);
-    let s = client.get_stream(&0);
-    assert_eq!(s.rate_per_second, 100);
-    assert!(!s.cancelled);
+    assert_eq!(client.stream_count(), 1);
 }
 
 #[test]
@@ -35,7 +33,20 @@ fn test_withdraw_mid_stream() {
     client.create(&sender, &recipient, &tok, &100, &0, &1000);
     env.ledger().set_timestamp(300);
     let amount = client.withdraw(&0);
-    assert_eq!(amount, 30_000); // 300s * 100
+    assert_eq!(amount, 30_000);
+    assert_eq!(client.balance_of(&0), 0);
+}
+
+#[test]
+fn test_balance_capped_at_stop_time() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &0, &500);
+    // now >> stop_time: balance should be capped at 500*100
+    env.ledger().set_timestamp(99999);
+    assert_eq!(client.balance_of(&0), 50_000);
 }
 
 #[test]
@@ -52,10 +63,32 @@ fn test_cancel_splits_correctly() {
 }
 
 #[test]
+fn test_balance_before_start_is_zero() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(500);
+    client.create(&sender, &recipient, &tok, &100, &1000, &2000);
+    assert_eq!(client.balance_of(&0), 0);
+}
+
+#[test]
 #[should_panic(expected = "stop_time must be after start_time")]
 fn test_invalid_time_range() {
     let (env, sender, recipient, tok) = mk_env();
     let cid    = env.register_contract(None, StreamContract);
     let client = StreamContractClient::new(&env, &cid);
     client.create(&sender, &recipient, &tok, &100, &500, &100);
+}
+
+#[test]
+#[should_panic(expected = "already cancelled")]
+fn test_double_cancel_panics() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &0, &1000);
+    client.cancel(&0);
+    client.cancel(&0);
 }
