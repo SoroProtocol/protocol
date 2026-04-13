@@ -46,7 +46,8 @@ impl DistributorContract {
         stop_time: u64,
     ) {
         sender.require_auth();
-        assert!(recipients.len() == amounts.len(), "length mismatch");
+        assert!(stop_time > start_time,             "invalid time range");
+        assert!(recipients.len() == amounts.len(),  "length mismatch");
         let total: i128 = amounts.iter().sum();
         token::Client::new(&env, &token).transfer(
             &sender, &env.current_contract_address(), &total,
