@@ -20,7 +20,8 @@ impl DistributorContract {
     ) {
         sender.require_auth();
         assert!(!recipients.is_empty(), "recipients list is empty");
-        assert!(stop_time > start_time, "invalid time range");
+        assert!(stop_time > start_time,  "invalid time range");
+        assert!(rate_per_second > 0,     "rate must be positive");
 
         let per_stream = rate_per_second * (stop_time - start_time) as i128;
         let total      = per_stream * recipients.len() as i128;
