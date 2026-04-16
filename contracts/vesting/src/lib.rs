@@ -37,11 +37,6 @@ impl VestingContract {
             claimed: 0, revoked: false,
         });
         env.storage().instance().set(&Symbol::new(&env, "cnt"), &(id + 1));
-
-        env.events().publish(
-            (Symbol::new(&env, "VestingCreated"), id),
-            (funder, total_amount),
-        );
         id
     }
 
@@ -59,6 +54,31 @@ impl VestingContract {
             &env.current_contract_address(), &vs.beneficiary, &claimable,
         );
         claimable
+    }
+
+    /// Revoke an unvested schedule. Returns unvested tokens to funder.
+    pub fn revoke(env: Env, schedule_id: u64, funder: Address) -> i128 {
+        let mut vs: VestingSchedule = env.storage().persistent()
+            .get(&schedule_id).expect("schedule not found");
+        funder.require_auth();
+        assert!(!vs.revoked, "already revoked");
+        let vested    = Self::_vested(&env, &vs);
+        let claimable = vested - vs.claimed;
+        let refund    = vs.total_amount - vested;
+        if claimable > 0 {
+            token::Client::new(&env, &vs.token).transfer(
+                &env.current_contract_address(), &vs.beneficiary, &claimable,
+            );
+        }
+        if refund > 0 {
+            token::Client::new(&env, &vs.token).transfer(
+                &env.current_contract_address(), &funder, &refund,
+            );
+        }
+        vs.revoked = true;
+        vs.claimed += claimable;
+        env.storage().persistent().set(&schedule_id, &vs);
+        refund
     }
 
     pub fn vested_of(env: Env, schedule_id: u64) -> i128 {
