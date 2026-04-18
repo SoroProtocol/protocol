@@ -47,6 +47,7 @@ impl DistributorContract {
         stop_time: u64,
     ) {
         sender.require_auth();
+        assert!(!recipients.is_empty(),             "recipients list is empty");
         assert!(stop_time > start_time,             "invalid time range");
         assert!(recipients.len() == amounts.len(),  "length mismatch");
         let total: i128 = amounts.iter().sum();
