@@ -50,6 +50,7 @@ impl DistributorContract {
         assert!(!recipients.is_empty(),             "recipients list is empty");
         assert!(stop_time > start_time,             "invalid time range");
         assert!(recipients.len() == amounts.len(),  "length mismatch");
+        assert!(amounts.iter().all(|a| a > 0), "all amounts must be positive");
         let total: i128 = amounts.iter().sum();
         token::Client::new(&env, &token).transfer(
             &sender, &env.current_contract_address(), &total,
