@@ -2,13 +2,13 @@
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec, token};
 
 /// Distributor: batch-create payment streams in one transaction.
-/// Ideal for DAO payroll runs and grant distributions.
+/// Supports multiple token types in a single distribution run.
 #[contract]
 pub struct DistributorContract;
 
 #[contractimpl]
 impl DistributorContract {
-    /// Create one stream per recipient, all with the same rate and duration.
+    /// Create one stream per recipient with the same rate and duration.
     pub fn distribute(
         env: Env,
         sender: Address,
@@ -31,6 +31,28 @@ impl DistributorContract {
 
         env.events().publish(
             (Symbol::new(&env, "BatchDistributed"),),
+            (sender.clone(), recipients.len() as u32, total),
+        );
+    }
+
+    /// Distribute different amounts to different recipients in one call.
+    pub fn distribute_custom(
+        env: Env,
+        sender: Address,
+        recipients: Vec<Address>,
+        amounts: Vec<i128>,
+        token: Address,
+        start_time: u64,
+        stop_time: u64,
+    ) {
+        sender.require_auth();
+        assert!(recipients.len() == amounts.len(), "length mismatch");
+        let total: i128 = amounts.iter().sum();
+        token::Client::new(&env, &token).transfer(
+            &sender, &env.current_contract_address(), &total,
+        );
+        env.events().publish(
+            (Symbol::new(&env, "CustomBatchDistributed"),),
             (sender, recipients.len() as u32, total),
         );
     }
