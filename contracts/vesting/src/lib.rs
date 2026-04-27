@@ -4,6 +4,9 @@ use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, token};
 mod types;
 pub use types::VestingSchedule;
 
+const VESTING_TTL_THRESHOLD: u32 = 259_200;
+const VESTING_TTL_EXTEND_TO: u32 = 518_400;
+
 #[contract]
 pub struct VestingContract;
 
@@ -36,6 +39,7 @@ impl VestingContract {
             start_time, cliff_time, end_time,
             claimed: 0, revoked: false,
         });
+        env.storage().persistent().extend_ttl(&id, VESTING_TTL_THRESHOLD, VESTING_TTL_EXTEND_TO);
         env.storage().instance().set(&Symbol::new(&env, "cnt"), &(id + 1));
         id
     }
@@ -50,6 +54,7 @@ impl VestingContract {
         assert!(claimable > 0, "nothing to claim");
         vs.claimed += claimable;
         env.storage().persistent().set(&schedule_id, &vs);
+        env.storage().persistent().extend_ttl(&schedule_id, VESTING_TTL_THRESHOLD, VESTING_TTL_EXTEND_TO);
         token::Client::new(&env, &vs.token).transfer(
             &env.current_contract_address(), &vs.beneficiary, &claimable,
         );
@@ -78,6 +83,7 @@ impl VestingContract {
         vs.revoked = true;
         vs.claimed += claimable;
         env.storage().persistent().set(&schedule_id, &vs);
+        env.storage().persistent().extend_ttl(&schedule_id, VESTING_TTL_THRESHOLD, VESTING_TTL_EXTEND_TO);
         refund
     }
 
