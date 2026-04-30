@@ -35,7 +35,7 @@ impl VestingContract {
         let id: u64 = env.storage().instance()
             .get(&Symbol::new(&env, "cnt")).unwrap_or(0);
         env.storage().persistent().set(&id, &VestingSchedule {
-            id, beneficiary, token, total_amount,
+            id, funder: funder.clone(), beneficiary, token, total_amount,
             start_time, cliff_time, end_time,
             claimed: 0, revoked: false,
         });
@@ -65,6 +65,7 @@ impl VestingContract {
     pub fn revoke(env: Env, schedule_id: u64, funder: Address) -> i128 {
         let mut vs: VestingSchedule = env.storage().persistent()
             .get(&schedule_id).expect("schedule not found");
+        assert!(funder == vs.funder, "caller is not the original funder");
         funder.require_auth();
         assert!(!vs.revoked, "already revoked");
         let vested    = Self::_vested(&env, &vs);
