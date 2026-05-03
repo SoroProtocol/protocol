@@ -41,6 +41,10 @@ impl VestingContract {
         });
         env.storage().persistent().extend_ttl(&id, VESTING_TTL_THRESHOLD, VESTING_TTL_EXTEND_TO);
         env.storage().instance().set(&Symbol::new(&env, "cnt"), &(id + 1));
+        env.events().publish(
+            (Symbol::new(&env, "VestingCreated"), id),
+            (funder, beneficiary, total_amount),
+        );
         id
     }
 
@@ -57,6 +61,10 @@ impl VestingContract {
         env.storage().persistent().extend_ttl(&schedule_id, VESTING_TTL_THRESHOLD, VESTING_TTL_EXTEND_TO);
         token::Client::new(&env, &vs.token).transfer(
             &env.current_contract_address(), &vs.beneficiary, &claimable,
+        );
+        env.events().publish(
+            (Symbol::new(&env, "VestingClaimed"), schedule_id),
+            (&vs.beneficiary, claimable),
         );
         claimable
     }
@@ -85,6 +93,10 @@ impl VestingContract {
         vs.claimed += claimable;
         env.storage().persistent().set(&schedule_id, &vs);
         env.storage().persistent().extend_ttl(&schedule_id, VESTING_TTL_THRESHOLD, VESTING_TTL_EXTEND_TO);
+        env.events().publish(
+            (Symbol::new(&env, "VestingRevoked"), schedule_id),
+            (&funder, claimable, refund),
+        );
         refund
     }
 
