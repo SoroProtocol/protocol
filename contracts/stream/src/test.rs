@@ -21,7 +21,7 @@ fn test_create_and_get() {
     env.ledger().set_timestamp(0);
     let id = client.create(&sender, &recipient, &tok, &100, &0, &1000);
     assert_eq!(id, 0);
-    assert_eq!(client.stream_count(), 1);
+    assert_eq!(client.next_stream_id(), 1);
 }
 
 #[test]

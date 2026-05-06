@@ -89,7 +89,8 @@ impl StreamContract {
         load_stream(&env, stream_id)
     }
 
-    pub fn stream_count(env: Env) -> u64 {
+    /// Returns the next stream ID (equals the number of streams ever created).
+    pub fn next_stream_id(env: Env) -> u64 {
         next_id(&env)
     }
 
