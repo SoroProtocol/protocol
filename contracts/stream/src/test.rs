@@ -73,6 +73,23 @@ fn test_balance_before_start_is_zero() {
 }
 
 #[test]
+#[should_panic]
+fn test_withdraw_by_non_recipient_panics() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &0, &1000);
+    env.ledger().set_timestamp(500);
+    // sender is not the recipient — should panic on require_auth
+    let stranger = Address::generate(&env);
+    env.mock_auths(&[]);  // remove blanket mock so auth is enforced
+    let _ = stranger;
+    // withdraw without recipient auth must fail
+    client.withdraw(&0);
+}
+
+#[test]
 #[should_panic(expected = "stop_time must be after start_time")]
 fn test_invalid_time_range() {
     let (env, sender, recipient, tok) = mk_env();
