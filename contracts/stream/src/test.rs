@@ -99,6 +99,19 @@ fn test_invalid_time_range() {
 }
 
 #[test]
+#[should_panic]
+fn test_cancel_by_non_sender_panics() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &0, &1000);
+    env.mock_auths(&[]);  // enforce real auth
+    let _ = (sender, recipient);
+    client.cancel(&0);
+}
+
+#[test]
 #[should_panic(expected = "already cancelled")]
 fn test_double_cancel_panics() {
     let (env, sender, recipient, tok) = mk_env();
