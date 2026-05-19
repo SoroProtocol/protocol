@@ -90,6 +90,18 @@ fn test_withdraw_by_non_recipient_panics() {
 }
 
 #[test]
+#[should_panic(expected = "nothing to withdraw")]
+fn test_withdraw_before_stream_starts_panics() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    // stream starts at 1000; withdraw at t=0 should fail
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &1000, &2000);
+    client.withdraw(&0);
+}
+
+#[test]
 #[should_panic(expected = "stop_time must be after start_time")]
 fn test_invalid_time_range() {
     let (env, sender, recipient, tok) = mk_env();
