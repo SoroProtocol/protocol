@@ -73,6 +73,20 @@ fn test_balance_before_start_is_zero() {
 }
 
 #[test]
+fn test_full_withdraw_at_stop_time() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &200, &0, &500);
+    // at exactly stop_time the full deposit (200*500 = 100_000) should be withdrawable
+    env.ledger().set_timestamp(500);
+    let amount = client.withdraw(&0);
+    assert_eq!(amount, 100_000);
+    assert_eq!(client.balance_of(&0), 0);
+}
+
+#[test]
 #[should_panic]
 fn test_withdraw_by_non_recipient_panics() {
     let (env, sender, recipient, tok) = mk_env();
