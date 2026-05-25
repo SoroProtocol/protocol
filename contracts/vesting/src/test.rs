@@ -43,6 +43,23 @@ fn test_partial_then_full_claim() {
 }
 
 #[test]
+fn test_revoke_correct_split() {
+    let (env, fund, bene, tok) = mk(1000);
+    let cid    = env.register_contract(None, VestingContract);
+    let client = VestingContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    // 1000 tokens, no cliff, vests 0→1000 over 0→1000
+    let id = client.create(&fund, &bene, &tok, &1000, &0, &0, &1000);
+    // revoke at t=300: 300 vested (goes to beneficiary), 700 unvested (goes back to funder)
+    env.ledger().set_timestamp(300);
+    let refund = client.revoke(&id, &fund);
+    assert_eq!(refund, 700);
+    let vs = client.get_schedule(&id);
+    assert!(vs.revoked);
+    assert_eq!(vs.claimed, 300);
+}
+
+#[test]
 #[should_panic(expected = "cliff must be >= start")]
 fn test_cliff_before_start_panics() {
     let (env, fund, bene, tok) = mk(1000);
