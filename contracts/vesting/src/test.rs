@@ -43,6 +43,20 @@ fn test_partial_then_full_claim() {
 }
 
 #[test]
+#[should_panic(expected = "schedule has been revoked")]
+fn test_claim_after_revoke_panics() {
+    let (env, fund, bene, tok) = mk(1000);
+    let cid    = env.register_contract(None, VestingContract);
+    let client = VestingContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    let id = client.create(&fund, &bene, &tok, &1000, &0, &0, &1000);
+    env.ledger().set_timestamp(500);
+    client.revoke(&id, &fund);
+    // claim on a revoked schedule must panic
+    client.claim(&id);
+}
+
+#[test]
 fn test_revoke_correct_split() {
     let (env, fund, bene, tok) = mk(1000);
     let cid    = env.register_contract(None, VestingContract);
