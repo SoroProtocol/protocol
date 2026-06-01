@@ -74,6 +74,22 @@ fn test_revoke_correct_split() {
 }
 
 #[test]
+fn test_zero_cliff_vests_from_start() {
+    let (env, fund, bene, tok) = mk(600);
+    let cid    = env.register_contract(None, VestingContract);
+    let client = VestingContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    // cliff == start_time == 0: vesting begins immediately
+    let id = client.create(&fund, &bene, &tok, &600, &0, &0, &600);
+    env.ledger().set_timestamp(0);
+    assert_eq!(client.vested_of(&id), 0); // t=0: elapsed=0, vested=0
+    env.ledger().set_timestamp(300);
+    assert_eq!(client.vested_of(&id), 300); // 50%
+    env.ledger().set_timestamp(600);
+    assert_eq!(client.vested_of(&id), 600); // fully vested
+}
+
+#[test]
 #[should_panic(expected = "cliff must be >= start")]
 fn test_cliff_before_start_panics() {
     let (env, fund, bene, tok) = mk(1000);
