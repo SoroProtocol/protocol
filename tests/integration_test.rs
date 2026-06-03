@@ -6,6 +6,8 @@ mod integration {
 
     #[test]
     fn test_stream_full_lifecycle() {
+        use soroban_stream::StreamContract;
+
         let env       = Env::default();
         env.mock_all_auths();
         let admin     = Address::generate(&env);
@@ -14,10 +16,28 @@ mod integration {
         let tok = env.register_stellar_asset_contract_v2(admin).address();
         token::StellarAssetClient::new(&env, &tok).mint(&sender, &10_000_000_i128);
 
+        let cid    = env.register_contract(None, StreamContract);
+        let client = soroban_stream::StreamContractClient::new(&env, &cid);
+
+        // create stream: 100 stroops/sec for 1000 seconds = 100_000 deposit
         env.ledger().set_timestamp(0);
-        // create → partial withdraw → verify balance → cancel
-        // Full assertions in unit tests; this ensures no cross-contract panics.
-        let _ = (sender, recipient, tok);
+        let id = client.create(&sender, &recipient, &tok, &100, &0, &1000);
+        assert_eq!(id, 0);
+        assert_eq!(client.balance_of(&id), 0);
+
+        // partial withdraw at t=300 → 30_000
+        env.ledger().set_timestamp(300);
+        assert_eq!(client.balance_of(&id), 30_000);
+        let withdrawn = client.withdraw(&id);
+        assert_eq!(withdrawn, 30_000);
+        assert_eq!(client.balance_of(&id), 0);
+
+        // cancel at t=500 → 50_000 accrued since last withdraw, 20_000 remaining to sender
+        env.ledger().set_timestamp(500);
+        let (to_rec, to_send) = client.cancel(&id);
+        assert_eq!(to_rec,  20_000); // 500-300=200 seconds * 100
+        assert_eq!(to_send, 50_000); // 1000-500=500 seconds * 100
+        assert_eq!(client.balance_of(&id), 0);
     }
 
     #[test]
