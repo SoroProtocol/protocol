@@ -34,6 +34,20 @@ fn test_distribute_zero_rate_panics() {
 }
 
 #[test]
+#[should_panic(expected = "length mismatch")]
+fn test_distribute_custom_length_mismatch_panics() {
+    let (env, _admin, sender, tok) = mk_env();
+    let cid    = env.register_contract(None, DistributorContract);
+    let client = DistributorContractClient::new(&env, &cid);
+    let mut recipients = Vec::new(&env);
+    recipients.push_back(Address::generate(&env));
+    recipients.push_back(Address::generate(&env));
+    let mut amounts: Vec<i128> = Vec::new(&env);
+    amounts.push_back(500_i128); // one amount for two recipients
+    client.distribute_custom(&sender, &recipients, &amounts, &tok, &0, &1000);
+}
+
+#[test]
 #[should_panic(expected = "invalid time range")]
 fn test_distribute_invalid_time_range_panics() {
     let (env, _admin, sender, tok) = mk_env();
