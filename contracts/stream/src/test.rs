@@ -21,7 +21,7 @@ fn test_create_and_get() {
     env.ledger().set_timestamp(0);
     let id = client.create(&sender, &recipient, &tok, &100, &0, &1000);
     assert_eq!(id, 0);
-    assert_eq!(client.stream_count(), 1);
+    assert_eq!(client.next_stream_id(), 1);
 }
 
 #[test]
@@ -63,6 +63,20 @@ fn test_cancel_splits_correctly() {
 }
 
 #[test]
+fn test_balance_of_cancelled_stream_is_zero() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &0, &1000);
+    env.ledger().set_timestamp(400);
+    client.cancel(&0);
+    // balance_of on a cancelled stream must return 0 regardless of time
+    env.ledger().set_timestamp(800);
+    assert_eq!(client.balance_of(&0), 0);
+}
+
+#[test]
 fn test_balance_before_start_is_zero() {
     let (env, sender, recipient, tok) = mk_env();
     let cid    = env.register_contract(None, StreamContract);
@@ -73,12 +87,82 @@ fn test_balance_before_start_is_zero() {
 }
 
 #[test]
+fn test_full_withdraw_at_stop_time() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &200, &0, &500);
+    // at exactly stop_time the full deposit (200*500 = 100_000) should be withdrawable
+    env.ledger().set_timestamp(500);
+    let amount = client.withdraw(&0);
+    assert_eq!(amount, 100_000);
+    assert_eq!(client.balance_of(&0), 0);
+}
+
+#[test]
+#[should_panic]
+fn test_withdraw_by_non_recipient_panics() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &0, &1000);
+    env.ledger().set_timestamp(500);
+    // sender is not the recipient — should panic on require_auth
+    let stranger = Address::generate(&env);
+    env.mock_auths(&[]);  // remove blanket mock so auth is enforced
+    let _ = stranger;
+    // withdraw without recipient auth must fail
+    client.withdraw(&0);
+}
+
+#[test]
+#[should_panic(expected = "nothing to withdraw")]
+fn test_withdraw_before_stream_starts_panics() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    // stream starts at 1000; withdraw at t=0 should fail
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &1000, &2000);
+    client.withdraw(&0);
+}
+
+#[test]
 #[should_panic(expected = "stop_time must be after start_time")]
 fn test_invalid_time_range() {
     let (env, sender, recipient, tok) = mk_env();
     let cid    = env.register_contract(None, StreamContract);
     let client = StreamContractClient::new(&env, &cid);
     client.create(&sender, &recipient, &tok, &100, &500, &100);
+}
+
+#[test]
+#[should_panic(expected = "stream is cancelled")]
+fn test_withdraw_after_cancel_panics() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &0, &1000);
+    env.ledger().set_timestamp(200);
+    client.cancel(&0);
+    // withdraw on a cancelled stream must panic
+    client.withdraw(&0);
+}
+
+#[test]
+#[should_panic]
+fn test_cancel_by_non_sender_panics() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &0, &1000);
+    env.mock_auths(&[]);  // enforce real auth
+    let _ = (sender, recipient);
+    client.cancel(&0);
 }
 
 #[test]

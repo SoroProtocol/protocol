@@ -4,6 +4,9 @@ use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, token};
 mod types;
 pub use types::VestingSchedule;
 
+const VESTING_TTL_THRESHOLD: u32 = 259_200;
+const VESTING_TTL_EXTEND_TO: u32 = 518_400;
+
 #[contract]
 pub struct VestingContract;
 
@@ -32,11 +35,16 @@ impl VestingContract {
         let id: u64 = env.storage().instance()
             .get(&Symbol::new(&env, "cnt")).unwrap_or(0);
         env.storage().persistent().set(&id, &VestingSchedule {
-            id, beneficiary, token, total_amount,
+            id, funder: funder.clone(), beneficiary, token, total_amount,
             start_time, cliff_time, end_time,
             claimed: 0, revoked: false,
         });
+        env.storage().persistent().extend_ttl(&id, VESTING_TTL_THRESHOLD, VESTING_TTL_EXTEND_TO);
         env.storage().instance().set(&Symbol::new(&env, "cnt"), &(id + 1));
+        env.events().publish(
+            (Symbol::new(&env, "VestingCreated"), id),
+            (funder, beneficiary, total_amount),
+        );
         id
     }
 
@@ -50,8 +58,13 @@ impl VestingContract {
         assert!(claimable > 0, "nothing to claim");
         vs.claimed += claimable;
         env.storage().persistent().set(&schedule_id, &vs);
+        env.storage().persistent().extend_ttl(&schedule_id, VESTING_TTL_THRESHOLD, VESTING_TTL_EXTEND_TO);
         token::Client::new(&env, &vs.token).transfer(
             &env.current_contract_address(), &vs.beneficiary, &claimable,
+        );
+        env.events().publish(
+            (Symbol::new(&env, "VestingClaimed"), schedule_id),
+            (&vs.beneficiary, claimable),
         );
         claimable
     }
@@ -60,6 +73,7 @@ impl VestingContract {
     pub fn revoke(env: Env, schedule_id: u64, funder: Address) -> i128 {
         let mut vs: VestingSchedule = env.storage().persistent()
             .get(&schedule_id).expect("schedule not found");
+        assert!(funder == vs.funder, "caller is not the original funder");
         funder.require_auth();
         assert!(!vs.revoked, "already revoked");
         let vested    = Self::_vested(&env, &vs);
@@ -78,6 +92,11 @@ impl VestingContract {
         vs.revoked = true;
         vs.claimed += claimable;
         env.storage().persistent().set(&schedule_id, &vs);
+        env.storage().persistent().extend_ttl(&schedule_id, VESTING_TTL_THRESHOLD, VESTING_TTL_EXTEND_TO);
+        env.events().publish(
+            (Symbol::new(&env, "VestingRevoked"), schedule_id),
+            (&funder, claimable, refund),
+        );
         refund
     }
 

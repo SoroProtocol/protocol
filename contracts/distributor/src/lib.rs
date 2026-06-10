@@ -20,7 +20,8 @@ impl DistributorContract {
     ) {
         sender.require_auth();
         assert!(!recipients.is_empty(), "recipients list is empty");
-        assert!(stop_time > start_time, "invalid time range");
+        assert!(stop_time > start_time,  "invalid time range");
+        assert!(rate_per_second > 0,     "rate must be positive");
 
         let per_stream = rate_per_second * (stop_time - start_time) as i128;
         let total      = per_stream * recipients.len() as i128;
@@ -46,7 +47,10 @@ impl DistributorContract {
         stop_time: u64,
     ) {
         sender.require_auth();
-        assert!(recipients.len() == amounts.len(), "length mismatch");
+        assert!(!recipients.is_empty(),             "recipients list is empty");
+        assert!(stop_time > start_time,             "invalid time range");
+        assert!(recipients.len() == amounts.len(),  "length mismatch");
+        assert!(amounts.iter().all(|a| a > 0), "all amounts must be positive");
         let total: i128 = amounts.iter().sum();
         token::Client::new(&env, &token).transfer(
             &sender, &env.current_contract_address(), &total,

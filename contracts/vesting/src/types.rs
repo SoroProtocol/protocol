@@ -4,6 +4,7 @@ use soroban_sdk::{contracttype, Address};
 #[derive(Clone)]
 pub struct VestingSchedule {
     pub id:           u64,
+    pub funder:       Address,
     pub beneficiary:  Address,
     pub token:        Address,
     pub total_amount: i128,

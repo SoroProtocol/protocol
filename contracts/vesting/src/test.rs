@@ -43,6 +43,53 @@ fn test_partial_then_full_claim() {
 }
 
 #[test]
+#[should_panic(expected = "schedule has been revoked")]
+fn test_claim_after_revoke_panics() {
+    let (env, fund, bene, tok) = mk(1000);
+    let cid    = env.register_contract(None, VestingContract);
+    let client = VestingContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    let id = client.create(&fund, &bene, &tok, &1000, &0, &0, &1000);
+    env.ledger().set_timestamp(500);
+    client.revoke(&id, &fund);
+    // claim on a revoked schedule must panic
+    client.claim(&id);
+}
+
+#[test]
+fn test_revoke_correct_split() {
+    let (env, fund, bene, tok) = mk(1000);
+    let cid    = env.register_contract(None, VestingContract);
+    let client = VestingContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    // 1000 tokens, no cliff, vests 0→1000 over 0→1000
+    let id = client.create(&fund, &bene, &tok, &1000, &0, &0, &1000);
+    // revoke at t=300: 300 vested (goes to beneficiary), 700 unvested (goes back to funder)
+    env.ledger().set_timestamp(300);
+    let refund = client.revoke(&id, &fund);
+    assert_eq!(refund, 700);
+    let vs = client.get_schedule(&id);
+    assert!(vs.revoked);
+    assert_eq!(vs.claimed, 300);
+}
+
+#[test]
+fn test_zero_cliff_vests_from_start() {
+    let (env, fund, bene, tok) = mk(600);
+    let cid    = env.register_contract(None, VestingContract);
+    let client = VestingContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    // cliff == start_time == 0: vesting begins immediately
+    let id = client.create(&fund, &bene, &tok, &600, &0, &0, &600);
+    env.ledger().set_timestamp(0);
+    assert_eq!(client.vested_of(&id), 0); // t=0: elapsed=0, vested=0
+    env.ledger().set_timestamp(300);
+    assert_eq!(client.vested_of(&id), 300); // 50%
+    env.ledger().set_timestamp(600);
+    assert_eq!(client.vested_of(&id), 600); // fully vested
+}
+
+#[test]
 #[should_panic(expected = "cliff must be >= start")]
 fn test_cliff_before_start_panics() {
     let (env, fund, bene, tok) = mk(1000);
