@@ -63,6 +63,20 @@ fn test_cancel_splits_correctly() {
 }
 
 #[test]
+fn test_balance_of_cancelled_stream_is_zero() {
+    let (env, sender, recipient, tok) = mk_env();
+    let cid    = env.register_contract(None, StreamContract);
+    let client = StreamContractClient::new(&env, &cid);
+    env.ledger().set_timestamp(0);
+    client.create(&sender, &recipient, &tok, &100, &0, &1000);
+    env.ledger().set_timestamp(400);
+    client.cancel(&0);
+    // balance_of on a cancelled stream must return 0 regardless of time
+    env.ledger().set_timestamp(800);
+    assert_eq!(client.balance_of(&0), 0);
+}
+
+#[test]
 fn test_balance_before_start_is_zero() {
     let (env, sender, recipient, tok) = mk_env();
     let cid    = env.register_contract(None, StreamContract);
